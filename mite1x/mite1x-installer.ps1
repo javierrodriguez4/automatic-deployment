@@ -13,13 +13,38 @@ function Get-EnvVariables {
     return $envVariables
 }
 
-# Función para descargar archivos desde una URL
+# Función para descargar archivos desde una URL con autenticación
 function Download-FileFromUrl {
     param (
         [string]$url,
-        [string]$outputPath
+        [string]$outputPath,
+        [string]$user,
+        [string]$password
     )
-    Invoke-WebRequest -Uri $url -OutFile $outputPath
+    try {
+        Write-Output "Intentando descargar desde $url..."
+        
+        $cred = [PSCredential]::new($user, (ConvertTo-SecureString $password -AsPlainText -Force))
+        $webRequest = [System.Net.HttpWebRequest]::Create($url)
+        $webRequest.Method = "GET"
+        $webRequest.Headers["Authorization"] = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($cred.UserName + ":" + $cred.GetNetworkCredential().Password))
+        
+        $response = $webRequest.GetResponse()
+        $responseStream = $response.GetResponseStream()
+        $fileStream = [System.IO.File]::Create($outputPath)
+        $buffer = New-Object byte[] 1024
+        $bytesRead = 0
+
+        while (($bytesRead = $responseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $fileStream.Write($buffer, 0, $bytesRead)
+        }
+
+        $responseStream.Close()
+        $fileStream.Close()
+        Write-Output "Archivo descargado correctamente en $outputPath"
+    } catch {
+        Write-Error "Error al descargar el archivo: $_"
+    }
 }
 
 # Ruta al archivo .env
@@ -32,6 +57,8 @@ $envVariables = Get-EnvVariables -filePath $envFilePath
 $disco = $envVariables["DISCO"]
 $carpetas = $envVariables["CARPETAS"].Split(",")
 $nexusUrl = $envVariables["NEXUS_URL"]
+$nexusUser = $envVariables["NEXUS_USER"]
+$nexusPassword = $envVariables["NEXUS_PASSWORD"]
 $downloadPath = "$disco\Servicios"
 
 # Crear las carpetas en el disco especificado
@@ -47,7 +74,7 @@ foreach ($folder in $carpetas) {
 
 # Descargar el archivo desde Nexus
 $zipFilePath = "$downloadPath\MitE1x.zip"
-Download-FileFromUrl -url $nexusUrl -outputPath $zipFilePath
+Download-FileFromUrl -url $nexusUrl -outputPath $zipFilePath -user $nexusUser -password $nexusPassword
 
 # Verificar si 7-Zip está instalado
 $sevenZipPath = "C:\Program Files\7-Zip\7z.exe"
