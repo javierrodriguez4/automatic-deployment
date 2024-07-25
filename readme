@@ -1,0 +1,2 @@
+Antes de ejecutar el script se debe ejecutar manualmente el siguiente comando en powershell
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
