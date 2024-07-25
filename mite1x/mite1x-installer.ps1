@@ -31,7 +31,7 @@ $envVariables = Get-EnvVariables -filePath $envFilePath
 # Obtener el valor de las variables del archivo .env
 $disco = $envVariables["DISCO"]
 $carpetas = $envVariables["CARPETAS"].Split(",")
-$oneDriveUrl = $envVariables["ONEDRIVE_URL"]
+$nexusUrl = $envVariables["NEXUS_URL"]
 $downloadPath = "$disco\Servicios"
 
 # Crear las carpetas en el disco especificado
@@ -45,9 +45,9 @@ foreach ($folder in $carpetas) {
     }
 }
 
-# Descargar la carpeta desde OneDrive
-$zipFilePath = "$downloadPath\OneDriveDownload.zip"
-Download-FileFromUrl -url $oneDriveUrl -outputPath $zipFilePath
+# Descargar el archivo desde Nexus
+$zipFilePath = "$downloadPath\MitE1x.zip"
+Download-FileFromUrl -url $nexusUrl -outputPath $zipFilePath
 
 # Verificar si 7-Zip está instalado
 $sevenZipPath = "C:\Program Files\7-Zip\7z.exe"
