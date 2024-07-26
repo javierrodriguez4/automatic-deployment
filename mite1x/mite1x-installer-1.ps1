@@ -21,25 +21,25 @@ function Download-FileFromUrl {
     )
     try {
         Write-Output "Intentando descargar desde $url..."
-        
-        $webRequest = [System.Net.HttpWebRequest]::Create($url)
-        $webRequest.Method = "GET"
-        
-        $response = $webRequest.GetResponse()
-        $responseStream = $response.GetResponseStream()
-        $fileStream = [System.IO.File]::Create($outputPath)
-        $buffer = New-Object byte[] 1024
-        $bytesRead = 0
-
-        while (($bytesRead = $responseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-            $fileStream.Write($buffer, 0, $bytesRead)
-        }
-
-        $responseStream.Close()
-        $fileStream.Close()
+        Invoke-WebRequest -Uri $url -OutFile $outputPath
         Write-Output "Archivo descargado correctamente en $outputPath"
     } catch {
         Write-Error "Error al descargar el archivo: $_"
+    }
+}
+
+# Función para descomprimir archivos .zip
+function Extract-ZipFile {
+    param (
+        [string]$zipPath,
+        [string]$extractPath
+    )
+    try {
+        Write-Output "Descomprimiendo el archivo $zipPath en $extractPath..."
+        Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+        Write-Output "Archivo descomprimido correctamente en $extractPath"
+    } catch {
+        Write-Error "Error al descomprimir el archivo: $_"
     }
 }
 
@@ -54,6 +54,20 @@ function Disable-WindowsFirewall {
     }
 }
 
+# Función para instalar un ejecutable
+function Install-Executable {
+    param (
+        [string]$exePath
+    )
+    if (Test-Path -Path $exePath) {
+        Write-Output "Instalando $exePath..."
+        Start-Process -FilePath $exePath -ArgumentList "/silent" -Wait
+        Write-Output "Instalación completada."
+    } else {
+        Write-Error "No se encontró el archivo ejecutable en la ruta: $exePath"
+    }
+}
+
 # Ruta al archivo .env
 $envFilePath = ".\.env"
 
@@ -63,7 +77,7 @@ $envVariables = Get-EnvVariables -filePath $envFilePath
 # Obtener el valor de las variables del archivo .env
 $disco = $envVariables["DISCO"]
 $carpetas = $envVariables["CARPETAS"].Split(",")
-$sqlncliUrl = $envVariables["SQLNCLI_URL"]
+$nexusUrl = $envVariables["NEXUS_URL"]
 $downloadPath = "$disco\Servicios"
 
 # Deshabilitar el firewall de Windows
@@ -80,9 +94,18 @@ foreach ($folder in $carpetas) {
     }
 }
 
-# Descargar el archivo SQL Server Native Client
-$sqlncliPath = "$downloadPath\sqlncli.msi"
-Download-FileFromUrl -url $sqlncliUrl -outputPath $sqlncliPath
+# Descargar el archivo desde Nexus
+$zipFilePath = "$downloadPath\MitE1x.zip"
+Download-FileFromUrl -url $nexusUrl -outputPath $zipFilePath
+
+# Descomprimir el archivo descargado
+Extract-ZipFile -zipPath $zipFilePath -extractPath $downloadPath
+
+# Ruta al archivo VC_redist.x86.exe dentro de la carpeta descomprimida
+$vcRedistPath = "$downloadPath\MitE1x-6.1.0.6\drivers\VC_redist.x86.exe"
+
+# Instalar el ejecutable VC_redist.x86.exe
+Install-Executable -exePath $vcRedistPath
 
 # Ejecutar comandos bcdedit
 Write-Output "Ejecutando comandos bcdedit..."
@@ -91,7 +114,7 @@ Start-Process -FilePath "bcdedit" -ArgumentList "-set testsigning on" -Wait -NoN
 
 # Mostrar mensaje para instalación manual
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.MessageBox]::Show("El archivo `sqlncli.msi` esta en la ruta $sqlncliPath. Debe instalarse manualmente para que la aplicacion MitE1x funcione correctamente. Por favor, haga clic en Aceptar para continuar.", "Instalacion Manual Requerida", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+[System.Windows.Forms.MessageBox]::Show("El archivo `sqlncli.msi` está en la ruta $sqlncliPath. Debe instalarse manualmente para que la aplicación MitE1x funcione correctamente. Por favor, haga clic en Aceptar para continuar.", "Instalación Manual Requerida", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
 
 Write-Output "El archivo sqlncli.msi ha sido descargado y está listo para la instalación manual."
 
