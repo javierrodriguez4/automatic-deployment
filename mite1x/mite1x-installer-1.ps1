@@ -68,6 +68,27 @@ function Install-Executable {
     }
 }
 
+# Función para renombrar la carpeta descomprimida a MitE1x
+function Rename-ToMitE1x {
+    param (
+        [string]$extractPath
+    )
+    try {
+        # Obtener la lista de carpetas dentro del directorio de extracción
+        $folders = Get-ChildItem -Path $extractPath -Directory
+        if ($folders.Count -eq 1) {
+            $oldFolderPath = $folders[0].FullName
+            $newFolderPath = Join-Path -Path $extractPath -ChildPath "MitE1x"
+            Rename-Item -Path $oldFolderPath -NewName "MitE1x" -Force
+            Write-Output "Carpeta renombrada a MitE1x"
+        } else {
+            Write-Error "Se esperaba una sola carpeta en $extractPath para renombrar. Carpeta(s) encontrada(s): $($folders.Count)"
+        }
+    } catch {
+        Write-Error "Error al renombrar la carpeta: $_"
+    }
+}
+
 # Ruta al archivo .env
 $envFilePath = ".\.env"
 
@@ -77,7 +98,10 @@ $envVariables = Get-EnvVariables -filePath $envFilePath
 # Obtener el valor de las variables del archivo .env
 $disco = $envVariables["DISCO"]
 $carpetas = $envVariables["CARPETAS"].Split(",")
-$nexusUrl = $envVariables["NEXUS_URL"]
+$nexusBaseUrl = $envVariables["NEXUS_BASE_URL"]
+$applicationVersion = $envVariables["APLICATION_VERSION"]
+$sqlncliUrl = $envVariables["SQLNCLI_URL"]
+$driversPathTemplate = $envVariables["DRIVERS_PATH"]
 $downloadPath = "$disco\Servicios"
 
 # Deshabilitar el firewall de Windows
@@ -94,6 +118,9 @@ foreach ($folder in $carpetas) {
     }
 }
 
+# Construir la URL de Nexus para la versión específica de MitE1x
+$nexusUrl = "$nexusBaseUrl/MitE1x-$applicationVersion.zip"
+
 # Descargar el archivo desde Nexus
 $zipFilePath = "$downloadPath\MitE1x.zip"
 Download-FileFromUrl -url $nexusUrl -outputPath $zipFilePath
@@ -101,8 +128,14 @@ Download-FileFromUrl -url $nexusUrl -outputPath $zipFilePath
 # Descomprimir el archivo descargado
 Extract-ZipFile -zipPath $zipFilePath -extractPath $downloadPath
 
+# Renombrar la carpeta descomprimida a MitE1x
+Rename-ToMitE1x -extractPath $downloadPath
+
+# Actualizar la variable driversPath
+$driversPath = "$downloadPath\MitE1x\drivers"
+
 # Ruta al archivo VC_redist.x86.exe dentro de la carpeta descomprimida
-$vcRedistPath = "$downloadPath\MitE1x-6.1.0.6\drivers\VC_redist.x86.exe"
+$vcRedistPath = "$driversPath\VC_redist.x86.exe"
 
 # Instalar el ejecutable VC_redist.x86.exe
 Install-Executable -exePath $vcRedistPath
@@ -111,6 +144,10 @@ Install-Executable -exePath $vcRedistPath
 Write-Output "Ejecutando comandos bcdedit..."
 Start-Process -FilePath "bcdedit" -ArgumentList "-set loadoptions disable_integrity_checks" -Wait -NoNewWindow
 Start-Process -FilePath "bcdedit" -ArgumentList "-set testsigning on" -Wait -NoNewWindow
+
+# Descargar el archivo sqlncli.msi
+$sqlncliPath = "$downloadPath\sqlncli.msi"
+Download-FileFromUrl -url $sqlncliUrl -outputPath $sqlncliPath
 
 # Mostrar mensaje para instalación manual
 Add-Type -AssemblyName System.Windows.Forms
