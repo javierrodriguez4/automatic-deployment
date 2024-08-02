@@ -1,0 +1,5 @@
+Consideraciones previas
+
+Sistema operativo Windows 10
+previamente se debe ejecutar el siguiente comando en powershell como administrador
+Set-ExecutionPolicy Unrestricted -Scope LocalMachine -Force
