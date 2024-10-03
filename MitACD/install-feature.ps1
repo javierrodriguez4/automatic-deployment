@@ -15,7 +15,7 @@ function Get-EnvVariables {
 
 # Ruta al archivo .env en el mismo directorio que el script
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$envFilePath = Join-Path -Path $scriptDir -ChildPath "features.env"
+$envFilePath = Join-Path -Path $scriptDir -ChildPath ".env"
 
 # Leer variables del archivo .env
 $envVariables = Get-EnvVariables -filePath $envFilePath

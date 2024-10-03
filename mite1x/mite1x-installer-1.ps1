@@ -13,6 +13,56 @@ function Get-EnvVariables {
     return $envVariables
 }
 
+# Función para escribir en el archivo de log
+function Write-Log {
+    param (
+        [string]$message
+    )
+    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $logMessage = "$timestamp - $message"
+    try {
+        if ($logFilePath) {
+            $logDir = Split-Path -Path $logFilePath -Parent
+            if (-Not (Test-Path -Path $logDir)) {
+                # Si la carpeta de logs no existe, crearla
+                New-Item -Path $logDir -ItemType Directory -Force | Out-Null
+                Write-Output "Carpeta de logs creada: $logDir"
+            }
+            if (-Not (Test-Path -Path $logFilePath)) {
+                # Si el archivo de log no existe, crear un archivo vacío
+                New-Item -Path $logFilePath -ItemType File -Force | Out-Null
+                Write-Output "Archivo de log creado: $logFilePath"
+            }
+            Add-Content -Path $logFilePath -Value $logMessage
+        }
+    } catch {
+        Write-Error "No se pudo escribir en el archivo de log: $_"
+    }
+}
+
+# Ruta al archivo .env
+$envFilePath = ".\.env"
+
+# Leer variables del archivo .env
+Write-Log "Leyendo variables del archivo .env..."
+$envVariables = Get-EnvVariables -filePath $envFilePath
+
+# Obtener el valor de las variables del archivo .env
+$disco = $envVariables["DISCO"]
+$carpetas = $envVariables["CARPETAS"].Split(",")
+$nexusBaseUrl = $envVariables["NEXUS_BASE_URL"]
+$applicationVersion = $envVariables["APLICATION_VERSION"]
+$sqlncliUrl = $envVariables["SQLNCLI_URL"]
+$driversPathTemplate = $envVariables["DRIVERS_PATH"]
+$downloadPath = "$disco\Servicios"
+$pathLogs = $envVariables["PATH_LOGS"]
+
+# Construir la ruta completa al archivo de log
+$logFilePath = Join-Path -Path $pathLogs -ChildPath "install.log"
+
+# Escribir mensaje inicial en el log
+Write-Log "Inicio del script."
+
 # Función para descargar archivos desde una URL sin autenticación
 function Download-FileFromUrl {
     param (
@@ -20,11 +70,11 @@ function Download-FileFromUrl {
         [string]$outputPath
     )
     try {
-        Write-Output "Intentando descargar desde $url..."
+        Write-Log "Intentando descargar desde $url..."
         Invoke-WebRequest -Uri $url -OutFile $outputPath
-        Write-Output "Archivo descargado correctamente en $outputPath"
+        Write-Log "Archivo descargado correctamente en $outputPath"
     } catch {
-        Write-Error "Error al descargar el archivo: $_"
+        Write-Log "Error al descargar el archivo: $_"
     }
 }
 
@@ -35,22 +85,22 @@ function Extract-ZipFile {
         [string]$extractPath
     )
     try {
-        Write-Output "Descomprimiendo el archivo $zipPath en $extractPath..."
+        Write-Log "Descomprimiendo el archivo $zipPath en $extractPath..."
         Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-        Write-Output "Archivo descomprimido correctamente en $extractPath"
+        Write-Log "Archivo descomprimido correctamente en $extractPath"
     } catch {
-        Write-Error "Error al descomprimir el archivo: $_"
+        Write-Log "Error al descomprimir el archivo: $_"
     }
 }
 
 # Función para deshabilitar el firewall de Windows
 function Disable-WindowsFirewall {
-    Write-Output "Deshabilitando el firewall de Windows..."
+    Write-Log "Deshabilitando el firewall de Windows..."
     try {
         Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
-        Write-Output "Firewall de Windows deshabilitado."
+        Write-Log "Firewall de Windows deshabilitado."
     } catch {
-        Write-Error "Error al deshabilitar el firewall: $_"
+        Write-Log "Error al deshabilitar el firewall: $_"
     }
 }
 
@@ -60,11 +110,11 @@ function Install-Executable {
         [string]$exePath
     )
     if (Test-Path -Path $exePath) {
-        Write-Output "Instalando $exePath..."
+        Write-Log "Instalando $exePath..."
         Start-Process -FilePath $exePath -ArgumentList "/silent" -Wait
-        Write-Output "Instalación completada."
+        Write-Log "Instalación completada."
     } else {
-        Write-Error "No se encontró el archivo ejecutable en la ruta: $exePath"
+        Write-Log "No se encontró el archivo ejecutable en la ruta: $exePath"
     }
 }
 
@@ -80,29 +130,14 @@ function Rename-ToMitE1x {
             $oldFolderPath = $folders[0].FullName
             $newFolderPath = Join-Path -Path $extractPath -ChildPath "MitE1x"
             Rename-Item -Path $oldFolderPath -NewName "MitE1x" -Force
-            Write-Output "Carpeta renombrada a MitE1x"
+            Write-Log "Carpeta renombrada a MitE1x"
         } else {
-            Write-Error "Se esperaba una sola carpeta en $extractPath para renombrar. Carpeta(s) encontrada(s): $($folders.Count)"
+            Write-Log "Se esperaba una sola carpeta en $extractPath para renombrar. Carpeta(s) encontrada(s): $($folders.Count)"
         }
     } catch {
-        Write-Error "Error al renombrar la carpeta: $_"
+        Write-Log "Error al renombrar la carpeta: $_"
     }
 }
-
-# Ruta al archivo .env
-$envFilePath = ".\.env"
-
-# Leer variables del archivo .env
-$envVariables = Get-EnvVariables -filePath $envFilePath
-
-# Obtener el valor de las variables del archivo .env
-$disco = $envVariables["DISCO"]
-$carpetas = $envVariables["CARPETAS"].Split(",")
-$nexusBaseUrl = $envVariables["NEXUS_BASE_URL"]
-$applicationVersion = $envVariables["APLICATION_VERSION"]
-$sqlncliUrl = $envVariables["SQLNCLI_URL"]
-$driversPathTemplate = $envVariables["DRIVERS_PATH"]
-$downloadPath = "$disco\Servicios"
 
 # Deshabilitar el firewall de Windows
 Disable-WindowsFirewall
@@ -111,10 +146,10 @@ Disable-WindowsFirewall
 foreach ($folder in $carpetas) {
     $path = "$disco\$folder"
     if (-Not (Test-Path -Path $path)) {
-        New-Item -ItemType Directory -Path $path
-        Write-Output "Carpeta creada: $path"
+        New-Item -ItemType Directory -Path $path -Force | Out-Null
+        Write-Log "Carpeta creada: $path"
     } else {
-        Write-Output "La carpeta ya existe: $path"
+        Write-Log "La carpeta ya existe: $path"
     }
 }
 
@@ -141,7 +176,7 @@ $vcRedistPath = "$driversPath\VC_redist.x86.exe"
 Install-Executable -exePath $vcRedistPath
 
 # Ejecutar comandos bcdedit
-Write-Output "Ejecutando comandos bcdedit..."
+Write-Log "Ejecutando comandos bcdedit..."
 Start-Process -FilePath "bcdedit" -ArgumentList "-set loadoptions disable_integrity_checks" -Wait -NoNewWindow
 Start-Process -FilePath "bcdedit" -ArgumentList "-set testsigning on" -Wait -NoNewWindow
 
@@ -153,14 +188,14 @@ Download-FileFromUrl -url $sqlncliUrl -outputPath $sqlncliPath
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.MessageBox]::Show("El archivo `sqlncli.msi` está en la ruta $sqlncliPath. Debe instalarse manualmente para que la aplicación MitE1x funcione correctamente. Por favor, haga clic en Aceptar para continuar.", "Instalación Manual Requerida", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
 
-Write-Output "El archivo sqlncli.msi ha sido descargado y está listo para la instalación manual."
+Write-Log "El archivo sqlncli.msi ha sido descargado y está listo para la instalación manual."
 
 # Mostrar mensaje de reinicio y contador de 10 segundos
 $confirmRestart = [System.Windows.Forms.MessageBox]::Show("El servidor se va a reiniciar. Presione Aceptar para iniciar un contador de 10 segundos antes del reinicio.", "Reinicio del Servidor", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
 
 if ($confirmRestart -eq [System.Windows.Forms.DialogResult]::OK) {
     for ($i = 10; $i -ge 0; $i--) {
-        Write-Output "Reiniciando en $i segundos..."
+        Write-Log "Reiniciando en $i segundos..."
         Start-Sleep -Seconds 1
     }
     Restart-Computer -Force
